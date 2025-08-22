@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SeismoGuard - Planetary Seismology Explorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./css/styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+    <!-- Navigation Header -->
+    <header class="nav-header">
+        <div class="nav-container">
+            <div class="logo">
+                <h1 class="logo-text">SeismoGuard</h1>
+                <span class="logo-subtitle">Planetary Seismology Explorer</span>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-view="home">Home</a>
+                <a href="#" class="nav-item" data-view="compare">Compare</a>
+                <a href="#" class="nav-item" data-view="data">Data</a>
+                <a href="#" class="nav-item" data-view="about">About</a>
+            </nav>
+            <button class="mobile-menu-toggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="main-container">
+        <!-- Landing Page - Carousel View -->
+        <section id="carousel-view" class="view-section active">
+            <div class="carousel-container">
+                <div id="planet-carousel" class="planet-carousel"></div>
+                <div class="carousel-info">
+                    <h2 id="current-planet-name" class="planet-name">Earth</h2>
+                    <p id="current-planet-desc" class="planet-description">
+                        Explore seismic activity across our solar system
+                    </p>
+                    <button id="explore-button" class="explore-button">
+                        Explore Seismic Activity
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dashboard View -->
+        <section id="dashboard-view" class="view-section">
+            <div class="dashboard-container">
+                <!-- Left Panel - 3D Planet -->
+                <div class="left-panel">
+                    <div class="panel-header">
+                        <h3 id="dashboard-planet-name" class="panel-title">Earth</h3>
+                        <div class="panel-controls">
+                            <button id="back-to-carousel" class="control-button">
+                                ← Back to Planets
+                            </button>
+                            <button id="toggle-markers" class="control-button active">
+                                Event Markers
+                            </button>
+                        </div>
+                    </div>
+                    <div id="planet-viewer" class="planet-viewer"></div>
+                </div>
+
+                <!-- Right Panel - Data Visualization -->
+                <div class="right-panel">
+                    <div class="panel-header">
+                        <h3 class="panel-title">Seismic Activity</h3>
+                        <div class="panel-controls">
+                            <select id="data-mode" class="control-select">
+                                <option value="realtime">Real-time</option>
+                                <option value="historical">Historical</option>
+                            </select>
+                            <button id="export-data" class="control-button">
+                                Export
+                            </button>
+                        </div>
+                    </div>
+                    <div class="visualization-container">
+                        <div id="waveform-chart" class="chart-container"></div>
+                        <div id="event-metadata" class="metadata-container">
+                            <div class="metadata-item">
+                                <span class="metadata-label">Latest Event:</span>
+                                <span id="latest-magnitude" class="metadata-value">--</span>
+                            </div>
+                            <div class="metadata-item">
+                                <span class="metadata-label">Depth:</span>
+                                <span id="latest-depth" class="metadata-value">--</span>
+                            </div>
+                            <div class="metadata-item">
+                                <span class="metadata-label">Duration:</span>
+                                <span id="latest-duration" class="metadata-value">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Timeline -->
+                <div class="timeline-panel">
+                    <div class="panel-header">
+                        <h3 class="panel-title">Event Timeline</h3>
+                        <div class="timeline-controls">
+                            <button id="play-timeline" class="control-button">
+                                ▶ Play
+                            </button>
+                            <button id="reset-timeline" class="control-button">
+                                ⟲ Reset
+                            </button>
+                        </div>
+                    </div>
+                    <div id="timeline-container" class="timeline-container"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Comparison View -->
+        <section id="compare-view" class="view-section">
+            <div class="compare-container">
+                <div class="compare-panel">
+                    <div class="panel-header">
+                        <select id="compare-planet-a" class="planet-select">
+                            <option value="earth">Earth</option>
+                            <option value="mars">Mars</option>
+                            <option value="moon">Moon</option>
+                        </select>
+                    </div>
+                    <div id="compare-viewer-a" class="compare-viewer"></div>
+                    <div id="compare-chart-a" class="compare-chart"></div>
+                </div>
+                <div class="compare-panel">
+                    <div class="panel-header">
+                        <select id="compare-planet-b" class="planet-select">
+                            <option value="mars">Mars</option>
+                            <option value="earth">Earth</option>
+                            <option value="moon">Moon</option>
+                        </select>
+                    </div>
+                    <div id="compare-viewer-b" class="compare-viewer"></div>
+                    <div id="compare-chart-b" class="compare-chart"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Educational Overlay -->
+    <div id="educational-overlay" class="educational-overlay">
+        <div class="overlay-content">
+            <button class="overlay-close">×</button>
+            <h2 id="overlay-title" class="overlay-title"></h2>
+            <p id="overlay-text" class="overlay-text"></p>
+            <div id="overlay-icon" class="overlay-icon"></div>
+        </div>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h2 class="loading-text">Initializing Planetary Data...</h2>
+        </div>
+    </div>
+
+    <!-- Annotation Panel -->
+    <div id="annotation-panel" class="annotation-panel">
+        <div class="annotation-header">
+            <h3>Event Annotations</h3>
+            <button id="close-annotations" class="close-button">×</button>
+        </div>
+        <div class="annotation-content">
+            <textarea id="annotation-text" placeholder="Add your notes about this seismic event..."></textarea>
+            <div class="annotation-controls">
+                <button id="save-annotation" class="save-button">Save Note</button>
+                <button id="export-annotations" class="export-button">Export All</button>
+            </div>
+        </div>
+        <div id="saved-annotations" class="saved-annotations"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="./js/main.js"></script>
+</body>
+</html>

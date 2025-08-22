@@ -1,0 +1,8 @@
+{
+  "name": "seismoguard-static",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "start": "echo 'Static project - open index.html in a browser' && exit 0"
+  }
+}
