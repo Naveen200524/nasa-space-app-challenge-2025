@@ -8,6 +8,8 @@ export class WaveformVisualizer {
         this.onEventSelect = null;
         
         this.seismicData = this.generateMockWaveformData();
+        // Track requests to avoid redundant backend calls across view switches
+        this._requestedDetections = new Set();
         this.initialize();
     }
     
@@ -227,6 +229,16 @@ export class WaveformVisualizer {
     loadPlanet(planetName) {
         this.currentPlanet = planetName;
         this.updateChart();
+        // Optional backend overlay of detections (non-blocking, fail-silent)
+        try {
+            const api = window.seismoGuardApp?.api;
+            // Only attempt real data overlay for Mars (InSight) and avoid duplicate calls
+            const key = `pds_search:${planetName}`;
+            if (api && planetName === 'mars' && !this._requestedDetections.has(key)) {
+                this._requestedDetections.add(key);
+                this.overlayDetectionsFromPDS(api, planetName, { cacheKey: key }).catch(() => {});
+            }
+        } catch (_) { /* ignore */ }
     }
     
     setDataMode(mode) {
@@ -362,6 +374,38 @@ export class WaveformVisualizer {
         if (this.animationId) {
             clearTimeout(this.animationId);
             this.animationId = null;
+        }
+    }
+
+    // Best-effort detection overlay using backend /detect with PDS search
+    async overlayDetectionsFromPDS(api, planet, { cacheKey } = {}) {
+        try {
+            const fd = new FormData();
+            fd.append('source', 'pds_search');
+            fd.append('planet', planet);
+            fd.append('mission', 'insight');
+            fd.append('instrument', 'SEIS');
+            const resp = await api.detect(fd, { cacheKey });
+            const events = Array.isArray(resp?.events) ? resp.events : [];
+            if (!events.length) return;
+
+            const d = this.seismicData[planet][this.dataMode];
+            const t0 = d.x[d.x.length - 1] || 0;
+            events.forEach((e, i) => {
+                d.events.push({
+                    id: `backend_${Date.now()}_${i}`,
+                    time: t0 - i * 60,
+                    magnitude: e.magnitude || 4,
+                    depth: e.depth || 50,
+                    duration: e.duration || 60,
+                    amplitude: (e.amplitude || 0.5),
+                    planet
+                });
+            });
+            this.updateChart();
+        } catch (err) {
+            // Fail silently to preserve UX; optionally log for diagnostics
+            console.debug('[WaveformVisualizer] overlayDetectionsFromPDS skipped:', err?.message || err);
         }
     }
     

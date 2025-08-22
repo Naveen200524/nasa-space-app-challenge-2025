@@ -5,6 +5,7 @@ import { Timeline } from './Timeline.js';
 import { OverlayManager } from './OverlayManager.js';
 import { CompareView } from './CompareView.js';
 import { AnnotationManager } from './AnnotationManager.js';
+import { ApiClient } from './apiClient.js';
 
 class SeismoGuardApp {
     constructor() {
@@ -25,6 +26,13 @@ class SeismoGuardApp {
     }
     
     initializeComponents() {
+        // Initialize optional backend client (non-disruptive)
+        try {
+            this.api = new ApiClient("http://127.0.0.1:5000");
+        } catch (_) {
+            this.api = null; // graceful fallback
+        }
+
         this.carousel = new PlanetCarousel('#planet-carousel');
         this.dashboard = new PlanetDashboard('#planet-viewer');
         this.waveform = new WaveformVisualizer('#waveform-chart');

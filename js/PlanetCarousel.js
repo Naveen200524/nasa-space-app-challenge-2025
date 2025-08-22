@@ -20,7 +20,7 @@ export class PlanetCarousel {
                 radius: 1.2,
                 texture: this.createEarthTexture(), // used as placeholder while model loads
                 modelPath: '/public/models/earth.glb',
-                position: { x: -3, y: 0, z: 0 },
+                position: { x: -2.4, y: 0, z: 0 },
                 rotation: { x: 0, y: 0, z: 0.1 }
             },
             mars: {
@@ -36,7 +36,7 @@ export class PlanetCarousel {
                 radius: 0.8,
                 texture: this.createMoonTexture(),
                 modelPath: '/public/models/moon.glb',
-                position: { x: 3, y: 0, z: 0 },
+                position: { x: 2.4, y: 0, z: 0 },
                 rotation: { x: 0, y: 0, z: 0 }
             }
         };
@@ -62,8 +62,8 @@ export class PlanetCarousel {
 
         // Camera
         const aspect = this.container.clientWidth / this.container.clientHeight;
-        this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
-        this.camera.position.set(0, 0, 6);
+        this.camera = new THREE.PerspectiveCamera(70, aspect, 0.1, 1000);
+        this.camera.position.set(0, 0, 5);
 
         // Renderer
         this.renderer = new THREE.WebGLRenderer({
@@ -106,46 +106,23 @@ export class PlanetCarousel {
 
     createPlanets() {
         Object.entries(this.planetData).forEach(([key, data], index) => {
-            // Create an invisible-but-raycastable sphere as the root for each planet
-            const colliderGeometry = new THREE.SphereGeometry(data.radius, 32, 16);
-            const colliderMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.0, depthWrite: false });
-            const planet = new THREE.Mesh(colliderGeometry, colliderMaterial);
+            // Create a group as the root for each planet (no overlay spheres)
+            const planet = new THREE.Group();
             planet.position.set(data.position.x, data.position.y, data.position.z);
             planet.rotation.set(data.rotation.x, data.rotation.y, data.rotation.z);
             planet.castShadow = false;
             planet.receiveShadow = false;
 
-            // Add glow effect around the collider sphere
-            const glowGeometry = new THREE.SphereGeometry(data.radius * 1.1, 32, 16);
-            const glowMaterial = new THREE.MeshBasicMaterial({
-                color: this.getPlanetGlowColor(key),
-                transparent: true,
-                opacity: 0.2,
-                side: THREE.BackSide
-            });
-            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-            planet.add(glow);
 
-            // Add a visible placeholder sphere while model loads
-            const placeholderGeometry = new THREE.SphereGeometry(data.radius, 64, 32);
-            const placeholderMaterial = new THREE.MeshPhongMaterial({
-                map: data.texture,
-                shininess: key === 'earth' ? 30 : 5,
-                transparent: true,
-                opacity: 0.9
-            });
-            const placeholder = new THREE.Mesh(placeholderGeometry, placeholderMaterial);
-            placeholder.castShadow = true;
-            placeholder.receiveShadow = true;
-            planet.add(placeholder);
+
+
 
             // Store metadata
             planet.userData = {
                 planetName: key,
                 originalPosition: { ...data.position },
                 isSelected: index === 1, // Mars starts selected
-                loaded: false,
-                placeholder
+                loaded: false
             };
 
             // Begin loading the GLTF model (robust path handling)
@@ -430,24 +407,14 @@ export class PlanetCarousel {
     selectPlanet(index) {
         if (index === this.currentPlanetIndex) return;
 
-        this.isAnimating = true;
+        // Keep consistent horizontal spacing and positions; only update selection state
         this.currentPlanetIndex = index;
-
-        // Reset all planets
         this.planets.forEach((planet, i) => {
             planet.userData.isSelected = i === index;
-
-            // Animate to new positions
-            const targetPosition = i === index ? { x: 0, y: 0, z: 0 } :
-                i < index ? { x: -3 - (index - i), y: 0, z: -1 } :
-                { x: 3 + (i - index), y: 0, z: -1 };
-
-            this.animatePlanetPosition(planet, targetPosition);
+            // Ensure planets remain aligned on a horizontal line with consistent spacing
+            const xPositions = [-2.4, 0, 2.4];
+            planet.position.set(xPositions[i], 0, 0);
         });
-
-        setTimeout(() => {
-            this.isAnimating = false;
-        }, 1000);
     }
 
     animatePlanetPosition(planet, targetPosition) {
@@ -484,17 +451,10 @@ export class PlanetCarousel {
             this.planets.forEach((planet, index) => {
                 planet.rotation.y += 0.005 + (index * 0.001);
 
-                // Add subtle floating motion
-                planet.position.y = planet.userData.originalPosition.y +
-                    Math.sin(Date.now() * 0.001 + index) * 0.05;
+                // Keep planets fixed on the same horizontal line (no vertical bobbing)
             });
 
-            // Slowly rotate the camera around the scene
-            const time = Date.now() * 0.0002;
-            this.camera.position.x = Math.cos(time) * 6;
-            this.camera.position.z = Math.sin(time) * 6;
-            this.camera.lookAt(this.scene.position);
-
+            // Static camera: no movement or lookAt updates
             this.renderer.render(this.scene, this.camera);
         };
 
