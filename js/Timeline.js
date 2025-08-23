@@ -40,6 +40,7 @@ export class Timeline {
             <div class="timeline-track">
                 <div class="timeline-background"></div>
                 <div class="timeline-progress"></div>
+                <div class="timeline-cursor"></div>
                 <div class="timeline-handle"></div>
                 <div class="timeline-events-layer"></div>
             </div>
@@ -77,8 +78,8 @@ export class Timeline {
             
             .timeline-track {
                 position: relative;
-                height: 60px;
-                background: rgba(0, 0, 0, 0.3);
+                height: 72px;
+                background: rgba(0, 0, 0, 0.28);
                 border-radius: 8px;
                 margin-bottom: 0.5rem;
                 cursor: pointer;
@@ -90,20 +91,33 @@ export class Timeline {
                 top: 50%;
                 left: 0;
                 right: 0;
-                height: 4px;
-                background: rgba(255, 255, 255, 0.2);
+                height: 10px;
+                background: linear-gradient(90deg, rgba(0,255,255,.18), rgba(139,92,246,.14));
                 transform: translateY(-50%);
+                border-radius: 8px;
             }
             
             .timeline-progress {
                 position: absolute;
                 top: 50%;
                 left: 0;
-                height: 4px;
+                height: 10px;
                 background: linear-gradient(90deg, #00ffff, #8b5cf6);
                 transform: translateY(-50%);
                 width: 0%;
                 transition: width 0.1s ease;
+                border-radius: 8px;
+                box-shadow: 0 0 8px rgba(0,255,255,.35);
+            }
+
+            .timeline-cursor {
+                position: absolute;
+                top: 0;
+                bottom: 0;
+                width: 2px;
+                left: 0%;
+                background: rgba(0,255,255,.7);
+                box-shadow: 0 0 8px rgba(0,255,255,.4);
             }
             
             .timeline-handle {
@@ -117,7 +131,7 @@ export class Timeline {
                 border-radius: 50%;
                 transform: translate(-50%, -50%);
                 cursor: grab;
-                box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+                box-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
                 transition: left 0.1s ease;
             }
             
@@ -137,11 +151,10 @@ export class Timeline {
             
             .timeline-event-marker {
                 position: absolute;
-                top: 50%;
+                top: 8px;
                 width: 3px;
-                height: 30px;
-                background: linear-gradient(to bottom, transparent, var(--event-color), transparent);
-                transform: translateY(-50%);
+                height: 56px;
+                background: linear-gradient(to bottom, var(--event-color), transparent 70%);
                 pointer-events: all;
                 cursor: pointer;
                 border-radius: 2px;
@@ -149,21 +162,21 @@ export class Timeline {
             }
             
             .timeline-event-marker:hover {
-                height: 45px;
+                height: 64px;
                 box-shadow: 0 0 10px var(--event-color);
                 z-index: 10;
             }
             
             .timeline-event-marker.major {
-                width: 5px;
-                height: 40px;
+                width: 4px;
+                height: 64px;
             }
             
             .timeline-time-labels {
                 display: flex;
                 justify-content: space-between;
-                font-size: 0.8rem;
-                color: #9ca3af;
+                font-size: 0.85rem;
+                color: #A8B7C0;
                 padding: 0 0.5rem;
             }
             
@@ -259,6 +272,25 @@ export class Timeline {
     loadPlanet(planetName) {
         this.currentPlanet = planetName;
         this.events = this.generateEventsForPlanet(planetName);
+        this.currentTime = 0;
+        this.updateDisplay();
+        this.renderEvents();
+        this.updateTimeLabels();
+    }
+
+    // Accept external events array: [{ time (s), magnitude, depth, duration, latitude, longitude }]
+    loadExternalEvents(events = []) {
+        if (!Array.isArray(events)) return;
+        this.events = events.map(e => ({
+            id: e.id || `ext_${Math.random()}`,
+            time: Number(e.time) || 0,
+            magnitude: Number(e.magnitude) || 3,
+            depth: e.depth ?? 0,
+            duration: e.duration ?? 30,
+            latitude: e.latitude ?? 0,
+            longitude: e.longitude ?? 0,
+            timestamp: Date.now()
+        })).sort((a,b) => a.time - b.time);
         this.currentTime = 0;
         this.updateDisplay();
         this.renderEvents();
@@ -435,9 +467,11 @@ export class Timeline {
         
         const progressBar = this.container.querySelector('.timeline-progress');
         const handle = this.container.querySelector('.timeline-handle');
+    const cursor = this.container.querySelector('.timeline-cursor');
         
         if (progressBar) progressBar.style.width = `${progress * 100}%`;
         if (handle) handle.style.left = `${progress * 100}%`;
+    if (cursor) cursor.style.left = `${progress * 100}%`;
     }
     
     togglePlayback() {

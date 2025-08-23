@@ -346,7 +346,7 @@ def detect_endpoint():
                 logger.warning(f"Noise masking failed: {e}")
                 pressure_info['masking_error'] = str(e)
         
-        # 6) Run seismic event detection
+    # 6) Run seismic event detection
         logger.info("Running seismic event detection")
         try:
             events_df, diagnostics = dm.analyze_trace(processed_trace, planet=planet)
@@ -363,7 +363,39 @@ def detect_endpoint():
             logger.error(f"Detection failed: {e}")
             return jsonify({'error': f'Detection failed: {str(e)}'}), 500
         
-        # 7) Prepare response
+        # 7) Prepare response (include compact processed timeseries for frontend plotting)
+        # Downsample to avoid huge payloads
+        try:
+            series = None
+            try:
+                from .io_utils import trace_to_numpy
+                arr, sr = trace_to_numpy(processed_trace, target_sampling_rate=None)
+            except Exception:
+                arr = processed_trace.data
+                sr = float(processed_trace.stats.sampling_rate)
+
+            n = len(arr)
+            max_points = int(request.args.get('max_points', request.form.get('max_points', 5000)) or 5000)
+            step = max(1, n // max_points)
+            if step > 1:
+                arr_ds = arr[::step]
+            else:
+                arr_ds = arr
+            # Convert to float for JSON and clamp NaNs
+            import numpy as _np
+            arr_ds = _np.nan_to_num(_np.asarray(arr_ds, dtype=float)).tolist()
+            series = {
+                'starttime': str(processed_trace.stats.starttime),
+                'sampling_rate': float(sr) / step,
+                'samples': arr_ds,
+                'original_points': n,
+                'downsample_step': step
+            }
+        except Exception as e:
+            logger.warning(f"Could not attach timeseries: {e}")
+            series = None
+
+        # 8) Prepare response
         response = {
             'events': events,
             'diagnostics': diagnostics,
@@ -372,7 +404,8 @@ def detect_endpoint():
                 'planet': planet,
                 'masking_applied': masking_applied,
                 'pressure_data': pressure_info if pressure_trace else None
-            }
+            },
+            'timeseries': series
         }
         
         logger.info(f"Request completed successfully: {len(events)} events detected")

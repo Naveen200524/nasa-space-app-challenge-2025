@@ -6,6 +6,7 @@ export class WaveformVisualizer {
         this.dataMode = 'realtime';
         this.animationId = null;
         this.onEventSelect = null;
+    this.api = window.seismoGuardApp?.api || null;
         
         this.seismicData = this.generateMockWaveformData();
         // Track requests to avoid redundant backend calls across view switches
@@ -30,27 +31,33 @@ export class WaveformVisualizer {
                 text: 'Seismic Waveform Analysis',
                 font: { color: '#00ffff', family: 'Orbitron', size: 16 }
             },
+            margin: { l: 56, r: 24, t: 52, b: 48 },
             xaxis: {
                 title: 'Time (seconds)',
-                color: '#ffffff',
-                gridcolor: 'rgba(255, 255, 255, 0.1)',
-                tickfont: { color: '#b4b4b8' },
-                titlefont: { color: '#b4b4b8' }
+                color: '#E8F6F6',
+                gridcolor: 'rgba(232, 246, 246, 0.08)',
+                zerolinecolor: 'rgba(232, 246, 246, 0.2)',
+                tickfont: { color: '#A8B7C0', size: 12 },
+                titlefont: { color: '#A8B7C0', size: 12 }
             },
             yaxis: {
                 title: 'Amplitude (m/s²)',
-                color: '#ffffff',
-                gridcolor: 'rgba(255, 255, 255, 0.1)',
-                tickfont: { color: '#b4b4b8' },
-                titlefont: { color: '#b4b4b8' }
+                color: '#E8F6F6',
+                gridcolor: 'rgba(232, 246, 246, 0.08)',
+                zerolinecolor: 'rgba(232, 246, 246, 0.2)',
+                tickfont: { color: '#A8B7C0', size: 12 },
+                titlefont: { color: '#A8B7C0', size: 12 }
             },
             plot_bgcolor: 'rgba(0, 0, 0, 0)',
             paper_bgcolor: 'rgba(0, 0, 0, 0)',
-            font: { color: '#ffffff' },
+            font: { color: '#E8F6F6', family: 'Exo 2, sans-serif', size: 12 },
             showlegend: true,
             legend: {
-                font: { color: '#b4b4b8' },
-                bgcolor: 'rgba(0, 0, 0, 0.3)'
+                x: 1, xanchor: 'right', y: 1,
+                font: { color: '#A8B7C0', size: 11 },
+                bgcolor: 'rgba(12, 18, 22, 0.6)',
+                bordercolor: 'rgba(255,255,255,0.1)',
+                borderwidth: 1
             },
             hovermode: 'x unified'
         };
@@ -226,19 +233,49 @@ export class WaveformVisualizer {
         return { x, y, events };
     }
     
-    loadPlanet(planetName) {
+    async loadPlanet(planetName) {
         this.currentPlanet = planetName;
-        this.updateChart();
-        // Optional backend overlay of detections (non-blocking, fail-silent)
+        // If backend is available, fetch real data per planet
+        let hydrated = false;
         try {
-            const api = window.seismoGuardApp?.api;
-            // Only attempt real data overlay for Mars (InSight) and avoid duplicate calls
+            const api = this.api;
+            if (api) {
+                if (planetName === 'mars') {
+                    const cacheKey = `pds:${planetName}`;
+                    const resp = await api.detectPdsSearch({ mission: 'insight', instrument: 'SEIS', planet: 'mars' }, { cacheKey });
+                    this._ingestDetectResponse(resp, { mode: this.dataMode });
+                    hydrated = true;
+                } else if (planetName === 'earth') {
+                    // default: fetch one hour from IRIS ANMO BHZ
+                    const now = new Date();
+                    const t2 = now.toISOString().slice(0,19);
+                    const t1 = new Date(now.getTime() - 60*60*1000).toISOString().slice(0,19);
+                    const cacheKey = `iris:${t1}:${t2}`;
+                    const resp = await api.detectIris({ network:'IU', station:'ANMO', channel:'BHZ', starttime:t1, endtime:t2, planet:'earth' }, { cacheKey });
+                    this._ingestDetectResponse(resp, { mode: this.dataMode });
+                    hydrated = true;
+                } else if (planetName === 'moon') {
+                    // For moon, try PDS search fallback (mock returns synthetic)
+                    const cacheKey = `pds:${planetName}`;
+                    const resp = await api.detectPdsSearch({ mission:'insight', instrument:'SEIS', planet:'moon' }, { cacheKey });
+                    this._ingestDetectResponse(resp, { mode: this.dataMode });
+                    hydrated = true;
+                }
+            }
+        } catch (e) {
+            console.debug('[WaveformVisualizer] backend fetch skipped:', e?.message || e);
+        }
+        // Always update chart, even if not hydrated
+        this.updateChart();
+        // Overlay backend detections for Mars specifically (best-effort)
+        try {
+            const api = this.api;
             const key = `pds_search:${planetName}`;
             if (api && planetName === 'mars' && !this._requestedDetections.has(key)) {
                 this._requestedDetections.add(key);
                 this.overlayDetectionsFromPDS(api, planetName, { cacheKey: key }).catch(() => {});
             }
-        } catch (_) { /* ignore */ }
+        } catch (_) {}
     }
     
     setDataMode(mode) {
@@ -269,6 +306,56 @@ export class WaveformVisualizer {
         // Update title based on planet and mode
         const title = `${this.getPlanetDisplayName(this.currentPlanet)} - ${this.dataMode === 'realtime' ? 'Real-time' : 'Historical'} Seismic Data`;
         Plotly.relayout(this.container, { title: title });
+    }
+
+    _ingestDetectResponse(resp, { mode = 'realtime' } = {}) {
+        // Convert detect response timeseries into our internal structure for current planet
+        try {
+            if (!resp) return;
+            const planet = this.currentPlanet;
+            const bucket = this.seismicData[planet][mode];
+            let updated = false;
+            if (resp.timeseries && Array.isArray(resp.timeseries.samples)) {
+                const sr = resp.timeseries.sampling_rate || 20;
+                const n = resp.timeseries.samples.length;
+                bucket.x = Array.from({ length: n }, (_, i) => i / sr);
+                bucket.y = resp.timeseries.samples.map(v => Number(v) || 0);
+                updated = true;
+            }
+            if (Array.isArray(resp.events)) {
+                // Map events to our format with rough amplitude proxy
+                const evs = resp.events.map((e, i) => ({
+                    id: `det_${i}_${e.time}`,
+                    time: this._parseEventTimeToSeconds(e.time, resp?.timeseries?.starttime, resp?.timeseries?.sampling_rate),
+                    magnitude: e.magnitude || e.z_score || 3,
+                    depth: e.depth || null,
+                    duration: e.duration || 30,
+                    amplitude: e.amplitude || 0.3,
+                    planet
+                })).filter(e => Number.isFinite(e.time));
+                bucket.events = evs;
+                updated = true;
+            }
+            if (updated) {
+                const evt = new CustomEvent('waveform:dataUpdated', { detail: { planet: planet, mode, events: bucket.events } });
+                window.dispatchEvent(evt);
+            }
+        } catch (err) {
+            console.debug('[WaveformVisualizer] ingest failed:', err?.message || err);
+        }
+    }
+
+    _parseEventTimeToSeconds(timeStr, startStr, sr) {
+        try {
+            if (!timeStr) return null;
+            const t = new Date(timeStr).getTime();
+            if (startStr) {
+                const t0 = new Date(startStr).getTime();
+                if (isFinite(t) && isFinite(t0)) return Math.max(0, (t - t0) / 1000);
+            }
+            // fallback: embed seconds in string? else 0
+            return 0;
+        } catch { return 0; }
     }
     
     getPlanetDisplayName(planetName) {

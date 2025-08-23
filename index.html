@@ -187,6 +187,44 @@
     </div>
 
     <!-- Scripts -->
+    <script>
+        // Basic desktop compatibility checks (no tracking, no network)
+        (function(){
+            try {
+                // WebGL support (for 3D planet)
+                var canvas = document.createElement('canvas');
+                var gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                var hasWebGL = !!gl;
+
+                // CSS support probes
+                var supportsBackdrop = CSS && (CSS.supports('backdrop-filter','blur(2px)') || CSS.supports('-webkit-backdrop-filter','blur(2px)'));
+                var supportsGrid = CSS && CSS.supports('display','grid');
+
+                if (!hasWebGL) {
+                    var warn = document.createElement('div');
+                    warn.style.position='fixed';
+                    warn.style.top='0';
+                    warn.style.left='0';
+                    warn.style.right='0';
+                    warn.style.padding='10px 16px';
+                    warn.style.background='#222';
+                    warn.style.color='#fff';
+                    warn.style.fontFamily='system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+                    warn.style.fontSize='14px';
+                    warn.style.zIndex='99999';
+                    warn.style.textAlign='center';
+                    warn.textContent = 'Your browser/driver does not appear to support WebGL. 3D planet rendering may be unavailable. Please update graphics drivers or use a modern desktop browser.';
+                    document.body.appendChild(warn);
+                }
+
+                // No blocking behavior; UI already includes CSS fallbacks.
+                if (!supportsBackdrop || !supportsGrid) {
+                    // Optionally log to console to aid debugging on legacy desktop setups
+                    console.warn('Reduced visual effects due to limited CSS feature support.');
+                }
+            } catch(e) { /* ignore */ }
+        })();
+    </script>
     <script type="module" src="./js/main.js"></script>
 </body>
 </html>

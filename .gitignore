@@ -23,3 +23,37 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Python caches and artifacts
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+backend/venv/
+.venv/
+
+# Test and type caches
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Backend runtime/output directories
+/uploads/
+/outputs/
+/cache/
+/models/
+backend/uploads/
+backend/outputs/
+backend/cache/
+backend/models/
+backend/data/
+backend/logs/
+
+# OS-specific
+Thumbs.db

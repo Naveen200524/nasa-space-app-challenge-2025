@@ -31,6 +31,9 @@ body {
     position: relative;
 }
 
+/* Smooth, native scrolling for desktop */
+html { scroll-behavior: smooth; }
+
 /* Animated Starfield Background */
 body::before {
     content: '';
@@ -58,15 +61,15 @@ body::after {
     width: 100%;
     height: 100%;
     background-image: 
-        radial-gradient(2px 2px at 20px 30px, rgba(255,255,255,0.8), transparent),
-        radial-gradient(2px 2px at 40px 70px, rgba(0,255,255,0.6), transparent),
-        radial-gradient(1px 1px at 90px 40px, rgba(255,255,255,0.9), transparent),
-        radial-gradient(1px 1px at 130px 80px, rgba(139,92,246,0.7), transparent),
-        radial-gradient(2px 2px at 160px 30px, rgba(255,255,255,0.8), transparent);
+        radial-gradient(2px 2px at 20px 30px, rgba(255,255,255,0.55), transparent),
+        radial-gradient(2px 2px at 40px 70px, rgba(0,255,255,0.4), transparent),
+        radial-gradient(1px 1px at 90px 40px, rgba(255,255,255,0.6), transparent),
+        radial-gradient(1px 1px at 130px 80px, rgba(139,92,246,0.45), transparent),
+        radial-gradient(2px 2px at 160px 30px, rgba(255,255,255,0.55), transparent);
     background-repeat: repeat;
     background-size: 200px 100px;
     z-index: -1;
-    animation: starsFloat 30s linear infinite;
+    animation: starsFloat 45s linear infinite;
 }
 
 @keyframes cosmicShift {
@@ -93,6 +96,7 @@ h1, h2, h3 {
     right: 0;
     z-index: 1000;
     background: rgba(10, 10, 15, 0.8);
+    -webkit-backdrop-filter: blur(20px);
     backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--glass-border);
     padding: 1rem 0;
@@ -176,13 +180,17 @@ h1, h2, h3 {
 .main-container {
     padding-top: 100px;
     min-height: 100vh;
+    /* Constrain super-wide screens so panels stay readable */
+    max-width: 1600px;
+    margin: 0 auto;
 }
 
 /* View Sections */
 .view-section {
     display: none;
     min-height: calc(100vh - 100px);
-    padding: 2rem;
+    /* Slightly reduce padding to give charts more space */
+    padding: 1.5rem 2rem;
 }
 
 .view-section.active {
@@ -207,6 +215,7 @@ h1, h2, h3 {
     position: relative;
     border-radius: 20px;
     background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(20px);
     backdrop-filter: blur(20px);
     border: 1px solid var(--glass-border);
     box-shadow: var(--shadow-glow);
@@ -278,14 +287,17 @@ h1, h2, h3 {
 /* Dashboard View */
 .dashboard-container {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr auto;
+    /* Stacked vertical layout for desktop */
+    grid-template-columns: 1fr;
+    grid-auto-rows: minmax(min-content, auto);
     gap: 2rem;
-    height: calc(100vh - 140px);
+    height: auto;           /* allow the page to scroll */
+    min-height: 0;
 }
 
 .left-panel, .right-panel {
     background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(20px);
     backdrop-filter: blur(20px);
     border: 1px solid var(--glass-border);
     border-radius: 20px;
@@ -297,10 +309,13 @@ h1, h2, h3 {
 .timeline-panel {
     grid-column: 1 / -1;
     background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(20px);
     backdrop-filter: blur(20px);
     border: 1px solid var(--glass-border);
     border-radius: 20px;
-    max-height: 200px;
+    /* In vertical layout, let content drive height; ensure a healthy minimum */
+    min-height: clamp(220px, 30vh, 360px);
+    max-height: none;
     display: flex;
     flex-direction: column;
 }
@@ -309,14 +324,18 @@ h1, h2, h3 {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1.5rem 2rem;
+    padding: 1.25rem 1.5rem;
     border-bottom: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(255, 255, 255, 0.03);
+    position: sticky;   /* keeps controls visible while scrolling inside tall panels */
+    top: 0;
+    z-index: 2;
 }
 
 .panel-title {
-    font-size: 1.2rem;
-    font-weight: 600;
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
     color: var(--accent-cyan);
 }
 
@@ -333,19 +352,25 @@ h1, h2, h3 {
     padding: 0.5rem 1rem;
     border-radius: 8px;
     cursor: pointer;
-    transition: var(--transition-smooth);
+    transition: transform .15s ease, box-shadow .2s ease, background .2s ease;
     font-size: 0.9rem;
     font-weight: 500;
 }
 
 .control-button:hover {
     background: rgba(0, 255, 255, 0.2);
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+    box-shadow: 0 0 0 3px rgba(0,255,255,0.15);
+    transform: translateY(-1px);
 }
 
 .control-button.active {
     background: var(--accent-cyan);
     color: var(--primary-bg);
+}
+
+.control-button:focus-visible {
+    outline: 2px solid rgba(0,255,255,0.55);
+    outline-offset: 2px;
 }
 
 .control-select {
@@ -368,28 +393,35 @@ h1, h2, h3 {
     flex: 1;
     position: relative;
     border-radius: 0 0 20px 20px;
+    /* More generous space in stacked layout */
+    min-height: clamp(420px, 48vh, 640px);
 }
 
 /* Visualization Container */
 .visualization-container {
     flex: 1;
-    padding: 2rem;
+    /* Balanced padding for readability */
+    padding: 1.25rem 1.25rem 1.5rem;
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1rem;
 }
 
 .chart-container {
     flex: 1;
     background: rgba(0, 0, 0, 0.3);
     border-radius: 10px;
-    padding: 1rem;
+    padding: 0.9rem;
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: inset 0 6px 22px rgba(0,0,0,0.35);
+    /* Guarantee a visible chart area regardless of content */
+    min-height: clamp(380px, 46vh, 640px);
 }
 
 .metadata-container {
     display: flex;
     justify-content: space-around;
-    padding: 1rem;
+    padding: 0.75rem 1rem;
     background: rgba(255, 255, 255, 0.02);
     border-radius: 10px;
 }
@@ -415,9 +447,11 @@ h1, h2, h3 {
 /* Timeline Container */
 .timeline-container {
     flex: 1;
-    padding: 1rem 2rem;
+    padding: 1rem 1.5rem 1.25rem;
     overflow-x: auto;
     background: rgba(0, 0, 0, 0.2);
+    /* Taller visualization area below the sticky header */
+    min-height: calc(100% - 68px);
 }
 
 .timeline-controls {
@@ -435,6 +469,7 @@ h1, h2, h3 {
 
 .compare-panel {
     background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(20px);
     backdrop-filter: blur(20px);
     border: 1px solid var(--glass-border);
     border-radius: 20px;
@@ -453,10 +488,11 @@ h1, h2, h3 {
 }
 
 .compare-viewer {
-    height: 300px;
+    height: 340px;
     border-radius: 10px;
     margin: 1rem;
     background: rgba(0, 0, 0, 0.3);
+    overflow: hidden; /* prevent canvas overflow stacking */
 }
 
 .compare-chart {
@@ -474,6 +510,7 @@ h1, h2, h3 {
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.8);
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     display: flex;
     align-items: center;
@@ -491,6 +528,7 @@ h1, h2, h3 {
 
 .overlay-content {
     background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(30px);
     backdrop-filter: blur(30px);
     border: 1px solid var(--glass-border);
     border-radius: 20px;
@@ -601,6 +639,7 @@ h1, h2, h3 {
     bottom: 2rem;
     width: 350px;
     background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(30px);
     backdrop-filter: blur(30px);
     border: 1px solid var(--glass-border);
     border-radius: 20px 0 0 20px;
@@ -711,8 +750,14 @@ h1, h2, h3 {
     }
     
     .planet-viewer {
-        height: 300px;
+        min-height: 320px;
     }
+    
+    .chart-container {
+        min-height: 320px;
+    }
+    
+    .timeline-panel { min-height: clamp(200px, 28vh, 320px); }
 }
 
 @media (max-width: 768px) {
@@ -730,6 +775,7 @@ h1, h2, h3 {
     
     .main-container {
         padding-top: 80px;
+        max-width: 100%;
     }
     
     .view-section {
@@ -750,9 +796,9 @@ h1, h2, h3 {
     }
     
     .panel-header {
-        padding: 1rem;
+        padding: 0.75rem 1rem;
         flex-direction: column;
-        gap: 1rem;
+        gap: 0.75rem;
         align-items: flex-start;
     }
     
@@ -766,6 +812,14 @@ h1, h2, h3 {
         width: 100%;
         top: 80px;
         border-radius: 0;
+    }
+    
+    .chart-container {
+        min-height: 280px;
+    }
+    
+    .compare-viewer {
+        height: 300px;
     }
 }
 
@@ -781,13 +835,24 @@ h1, h2, h3 {
     
     .metadata-container {
         flex-direction: column;
-        gap: 1rem;
+        gap: 0.75rem;
     }
     
     .timeline-controls {
         flex-direction: column;
         gap: 0.5rem;
     }
+
+    .timeline-panel { min-height: 220px; }
+}
+
+/* Ensure any canvas/Plotly elements expand to their container */
+.chart-container canvas,
+.chart-container svg,
+#waveform-chart canvas,
+#waveform-chart svg {
+    width: 100% !important;
+    height: 100% !important;
 }
 
 /* Loading state animations */
@@ -798,6 +863,10 @@ h1, h2, h3 {
 .slide-up {
     animation: slideUp 0.5s ease-out;
 }
+
+/* Scroll reveal utility */
+.reveal { opacity: 0; transform: translateY(18px); transition: opacity .4s ease, transform .45s ease; }
+.reveal.is-visible { opacity: 1; transform: translateY(0); }
 
 @keyframes fadeIn {
     from { opacity: 0; }
@@ -826,4 +895,37 @@ h1, h2, h3 {
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--accent-purple);
+}
+
+/* -------- Desktop cross-browser fallbacks -------- */
+/* If backdrop-filter isn't supported, use a more opaque background */
+@supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
+    .left-panel,
+    .right-panel,
+    .timeline-panel,
+    .compare-panel,
+    .overlay-content,
+    .annotation-panel,
+    .planet-carousel,
+    .educational-overlay {
+        background: rgba(24, 24, 32, 0.92);
+    }
+}
+
+/* Flex gap fallback for older desktop browsers */
+@supports not (gap: 1rem) {
+    .nav-menu > * + * { margin-left: 2rem; }
+    .panel-controls > * + * { margin-left: 1rem; }
+    .annotation-controls > * + * { margin-left: 1rem; }
+    .timeline-controls > * + * { margin-left: 0.5rem; }
+}
+
+/* Grid fallback for very old desktop browsers */
+@supports not (display: grid) {
+    .dashboard-container,
+    .compare-container {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+    }
 }

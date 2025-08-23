@@ -4,7 +4,9 @@ scipy==1.13.1
 pandas==2.2.2
 scikit-learn==1.5.0
 tensorflow==2.17.0
-tensorflow-addons==0.23.0
+# TensorFlow Addons has limited wheel support on Windows and Python >=3.11.
+# Make it optional via environment markers; safe to skip as backend doesn't require it.
+tensorflow-addons==0.22.0; python_version < "3.11" and sys_platform != "win32"
 
 # Seismology
 obspy==1.4.0

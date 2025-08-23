@@ -58,5 +58,42 @@ export class ApiClient {
       throw e;
     }
   }
+
+  // High-level helpers
+  async health() {
+    const res = await this._fetch(`${this.base}/health`);
+    if (!res.ok) throw new Error(`health ${res.status}`);
+    return res.json();
+  }
+
+  async earthquakesRecent({ magnitude = 4.0, hours = 24, sources = 'usgs,emsc' } = {}) {
+    const params = new URLSearchParams({ magnitude, hours, sources });
+    const res = await this._fetch(`${this.base}/earthquakes/recent?${params.toString()}`);
+    if (!res.ok) throw new Error(`recent ${res.status}`);
+    return res.json();
+  }
+
+  // Convenience: IRIS fetch via /detect
+  async detectIris({ network, station, channel, starttime, endtime, planet = 'earth' }, { cacheKey } = {}) {
+    const fd = new FormData();
+    fd.append('source', 'iris');
+    fd.append('network', network);
+    fd.append('station', station);
+    fd.append('channel', channel);
+    fd.append('starttime', starttime);
+    fd.append('endtime', endtime);
+    fd.append('planet', planet);
+    return this.detect(fd, { cacheKey });
+  }
+
+  // Convenience: NASA PDS search via /detect
+  async detectPdsSearch({ mission = 'insight', instrument = 'SEIS', planet = 'mars' } = {}, { cacheKey } = {}) {
+    const fd = new FormData();
+    fd.append('source', 'pds_search');
+    fd.append('mission', mission);
+    fd.append('instrument', instrument);
+    fd.append('planet', planet);
+    return this.detect(fd, { cacheKey });
+  }
 }
 

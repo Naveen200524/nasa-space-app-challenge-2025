@@ -7,14 +7,20 @@ export class CompareView {
         this.chartA = null;
         this.chartB = null;
         this.syncPlayback = true;
+        this.initialized = false;
         
         this.planetData = this.generateComparisonData();
     }
     
     initialize() {
+        // Ensure idempotent init: clean any previous instances and DOM children
+        if (this.initialized) {
+            this.destroy();
+        }
         this.setupViewers();
         this.setupCharts();
         this.updateComparison();
+        this.initialized = true;
     }
     
     setupViewers() {
@@ -225,14 +231,17 @@ export class CompareView {
     
     setPlanetA(planetName) {
         this.planetA = planetName;
-        this.updateViewerA();
-        this.updateChartA();
+    // If not initialized yet, ignore (will be set during initialize)
+    if (!this.initialized) return;
+    this.updateViewerA();
+    this.updateChartA();
     }
     
     setPlanetB(planetName) {
         this.planetB = planetName;
-        this.updateViewerB();
-        this.updateChartB();
+    if (!this.initialized) return;
+    this.updateViewerB();
+    this.updateChartB();
     }
     
     updateViewerA() {
@@ -250,6 +259,7 @@ export class CompareView {
     updateChartA() {
         if (this.chartA) {
             const container = this.chartA.container;
+            try { if (window.Plotly) Plotly.purge(container); } catch(_) {}
             container.innerHTML = '';
             this.chartA = this.createComparisonChart(container, this.planetA);
         }
@@ -258,6 +268,7 @@ export class CompareView {
     updateChartB() {
         if (this.chartB) {
             const container = this.chartB.container;
+            try { if (window.Plotly) Plotly.purge(container); } catch(_) {}
             container.innerHTML = '';
             this.chartB = this.createComparisonChart(container, this.planetB);
         }
@@ -362,6 +373,11 @@ export class CompareView {
         // Implementation for synchronized playback of events
     }
     
+    handleResize() {
+        this.viewerA?.handleResize?.();
+        this.viewerB?.handleResize?.();
+    }
+    
     exportComparison() {
         const comparisonData = {
             planetA: {
@@ -391,17 +407,24 @@ export class CompareView {
     
     destroy() {
         // Clean up viewers and charts
-        if (this.viewerA) this.viewerA.destroy();
-        if (this.viewerB) this.viewerB.destroy();
+    if (this.viewerA) { this.viewerA.destroy(); this.viewerA = null; }
+    if (this.viewerB) { this.viewerB.destroy(); this.viewerB = null; }
         
-        if (this.chartA) Plotly.purge(this.chartA.container);
-        if (this.chartB) Plotly.purge(this.chartB.container);
+    if (this.chartA) { try { Plotly.purge(this.chartA.container); } catch(_) {} this.chartA.container.innerHTML = ''; this.chartA = null; }
+    if (this.chartB) { try { Plotly.purge(this.chartB.container); } catch(_) {} this.chartB.container.innerHTML = ''; this.chartB = null; }
+        
+    // Also clear any leftover DOM nodes inside viewer containers
+    const va = document.getElementById('compare-viewer-a');
+    const vb = document.getElementById('compare-viewer-b');
+    if (va) va.innerHTML = '';
+    if (vb) vb.innerHTML = '';
         
         // Remove insights panel
         const insightsPanel = document.getElementById('comparison-insights');
         if (insightsPanel) {
             document.body.removeChild(insightsPanel);
         }
+    this.initialized = false;
     }
 }
 
@@ -413,7 +436,9 @@ class ComparisonViewer {
         this.scene = null;
         this.camera = null;
         this.renderer = null;
-        this.planet = null;
+        this.planet = null; // fallback sphere
+        this.modelGroup = null; // loaded GLTF root
+        this.loader = null;
         this.animationId = null;
         
         this.initialize();
@@ -421,22 +446,27 @@ class ComparisonViewer {
     
     initialize() {
         this.setupScene();
-        this.createPlanet();
+        this.loadPlanetModel(this.planetName).catch(() => {
+            // Fallback to sphere on error
+            this.createPlanet();
+        });
         this.startAnimation();
     }
     
     setupScene() {
         this.scene = new THREE.Scene();
         
-        const aspect = this.container.clientWidth / this.container.clientHeight;
-        this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
-        this.camera.position.z = 2.5;
-        
+    const aspect = this.container.clientWidth / this.container.clientHeight;
+    this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+    this.camera.position.set(0, 0, 2.5);
+    this.camera.lookAt(0, 0, 0);
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         this.renderer.setClearColor(0x000000, 0);
         
-        this.container.appendChild(this.renderer.domElement);
+    // Defensive: ensure container is empty before appending a new canvas
+    while (this.container.firstChild) this.container.removeChild(this.container.firstChild);
+    this.container.appendChild(this.renderer.domElement);
         
         // Lighting
         const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
@@ -445,8 +475,44 @@ class ComparisonViewer {
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
         directionalLight.position.set(-1, 1, 1);
         this.scene.add(directionalLight);
+        
+        this.loader = new THREE.GLTFLoader();
     }
     
+    async loadPlanetModel(planetName) {
+        const path = this.getModelPath(planetName);
+        if (!path) throw new Error('No model path');
+        // Clear previous
+        this.clearModel();
+        const gltf = await this.loader.loadAsync(path);
+        const root = gltf.scene || gltf.scenes?.[0];
+        if (!root) throw new Error('Invalid GLB');
+        this.modelGroup = root;
+        // Normalize size and center
+        const box = new THREE.Box3().setFromObject(root);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+    root.position.sub(center); // center at origin
+    root.position.y = 0; // ensure consistent Y alignment across models
+        const maxDim = Math.max(size.x, size.y, size.z) || 1;
+        const targetSize = 1.6; // fit within camera view comfortably
+        const scale = targetSize / maxDim;
+        root.scale.setScalar(scale);
+    root.rotation.set(0, 0, 0);
+        this.scene.add(root);
+    }
+
+    getModelPath(planet) {
+        switch (planet) {
+            case 'earth': return 'public/earth.glb';
+            case 'mars':  return 'public/mars.glb';
+            case 'moon':  return 'public/moon.glb';
+            default: return null;
+        }
+    }
+
     createPlanet() {
         const geometry = new THREE.SphereGeometry(0.8, 32, 16);
         const material = new THREE.MeshPhongMaterial({
@@ -469,23 +535,56 @@ class ComparisonViewer {
     
     loadPlanet(planetName) {
         this.planetName = planetName;
-        if (this.planet) {
-            this.planet.material.color.setHex(this.getPlanetColor());
-        }
+        // Try load GLB; on fail, fall back to recoloring sphere
+        this.loadPlanetModel(planetName).catch(() => {
+            if (!this.planet) this.createPlanet();
+            if (this.planet) this.planet.material.color.setHex(this.getPlanetColor());
+        });
     }
     
     startAnimation() {
         const animate = () => {
             this.animationId = requestAnimationFrame(animate);
             
-            if (this.planet) {
-                this.planet.rotation.y += 0.005;
-            }
+            // Static models (no rotation) per request
             
             this.renderer.render(this.scene, this.camera);
         };
         
         animate();
+    }
+    
+    handleResize() {
+        if (!this.renderer || !this.camera) return;
+        const w = this.container.clientWidth || 1;
+        const h = this.container.clientHeight || 1;
+        this.renderer.setSize(w, h);
+        this.camera.aspect = w / h;
+        this.camera.updateProjectionMatrix();
+    }
+    
+    clearModel() {
+        if (this.modelGroup) {
+            this.scene.remove(this.modelGroup);
+            this.disposeObject(this.modelGroup);
+            this.modelGroup = null;
+        }
+        if (this.planet) {
+            this.scene.remove(this.planet);
+            this.disposeObject(this.planet);
+            this.planet = null;
+        }
+    }
+    
+    disposeObject(obj) {
+        obj.traverse?.((child) => {
+            if (child.geometry) child.geometry.dispose?.();
+            if (child.material) {
+                if (Array.isArray(child.material)) child.material.forEach(m => m.dispose?.());
+                else child.material.dispose?.();
+            }
+            if (child.texture) child.texture.dispose?.();
+        });
     }
     
     destroy() {
@@ -497,5 +596,6 @@ class ComparisonViewer {
             this.container.removeChild(this.renderer.domElement);
             this.renderer.dispose();
         }
+        this.clearModel();
     }
 }

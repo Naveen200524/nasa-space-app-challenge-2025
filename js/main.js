@@ -33,8 +33,8 @@ class SeismoGuardApp {
             this.api = null; // graceful fallback
         }
 
-        this.carousel = new PlanetCarousel('#planet-carousel');
-        this.dashboard = new PlanetDashboard('#planet-viewer');
+    this.carousel = new PlanetCarousel('#planet-carousel');
+    this.dashboard = new PlanetDashboard('#planet-viewer');
         this.waveform = new WaveformVisualizer('#waveform-chart');
         this.timeline = new Timeline('#timeline-container');
         this.overlay = new OverlayManager();
@@ -50,6 +50,29 @@ class SeismoGuardApp {
             // Ensure loading screen is dismissed even if carousel struggles
             this.hideLoadingScreen();
         });
+
+        // Scroll reveal on desktop: mark key panels and observe
+        try {
+            document.querySelectorAll('.left-panel, .right-panel, .timeline-panel').forEach(el => {
+                el.classList.add('reveal');
+            });
+            const io = new IntersectionObserver((entries) => {
+                entries.forEach(e => {
+                    if (e.isIntersecting) {
+                        e.target.classList.add('is-visible');
+                        // Nudge charts/viewers to resize when they appear
+                        if (e.target.querySelector('#waveform-chart')) {
+                            this.waveform?.handleResize();
+                        }
+                        if (e.target.querySelector('#planet-viewer')) {
+                            this.dashboard?.handleResize?.();
+                        }
+                    }
+                });
+            }, { threshold: 0.15 });
+            document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+            this._revealObserver = io;
+        } catch(_) {}
     }
     
     setupEventListeners() {
@@ -137,6 +160,15 @@ class SeismoGuardApp {
         comparePlanetB?.addEventListener('change', (e) => {
             this.compare.setPlanetB(e.target.value);
         });
+
+        // When waveform ingests backend data, reflect into timeline
+        window.addEventListener('waveform:dataUpdated', (e) => {
+            try {
+                if (this.currentView === 'dashboard') {
+                    this.timeline.loadExternalEvents(e.detail?.events || []);
+                }
+            } catch(_) {}
+        });
     }
     
     switchView(viewName) {
@@ -163,6 +195,8 @@ class SeismoGuardApp {
                     this.carousel.startAnimation();
                     break;
                 case 'compare':
+                    // Re-init compare view cleanly to avoid duplicate canvases/charts
+                    try { this.compare.destroy(); } catch(_) {}
                     this.compare.initialize();
                     break;
                 case 'data':
@@ -187,8 +221,18 @@ class SeismoGuardApp {
     switchToDashboard() {
         this.switchView('dashboard');
         this.dashboard.loadPlanet(this.currentPlanet);
-        this.waveform.loadPlanet(this.currentPlanet);
+        this.waveform.loadPlanet(this.currentPlanet).then(() => {
+            try {
+                // If waveform has backend events for current planet, reflect into timeline
+                const d = this.waveform.seismicData[this.currentPlanet][this.waveform.dataMode];
+                if (Array.isArray(d.events) && d.events.length) {
+                    this.timeline.loadExternalEvents(d.events);
+                }
+            } catch(_) {}
+        });
         this.timeline.loadPlanet(this.currentPlanet);
+    // Ensure user lands at top of dashboard for stacked layout
+    try { document.getElementById('dashboard-view')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(_) {}
         
         // Show educational overlay for the selected planet
         this.overlay.showPlanetInfo(this.currentPlanet);
@@ -314,5 +358,6 @@ window.addEventListener('resize', () => {
         window.seismoGuardApp.carousel?.handleResize();
         window.seismoGuardApp.dashboard?.handleResize();
         window.seismoGuardApp.waveform?.handleResize();
+    window.seismoGuardApp.compare?.handleResize?.();
     }
 });
