@@ -1,17 +1,22 @@
 export class WaveformVisualizer {
-    constructor(containerId) {
+    constructor(containerId, api = null) {
         this.container = document.querySelector(containerId);
         this.chart = null;
         this.currentPlanet = null;
         this.dataMode = 'realtime';
         this.animationId = null;
         this.onEventSelect = null;
-    this.api = window.seismoGuardApp?.api || null;
+        // Prefer explicitly injected api; fall back to global if available
+        this.api = api || (window.seismoGuardApp?.api || null);
         
         this.seismicData = this.generateMockWaveformData();
         // Track requests to avoid redundant backend calls across view switches
         this._requestedDetections = new Set();
         this.initialize();
+    }
+
+    setApi(api) {
+        this.api = api;
     }
     
     initialize() {

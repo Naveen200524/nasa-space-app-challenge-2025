@@ -29,13 +29,17 @@ class SeismoGuardApp {
         // Initialize optional backend client (non-disruptive)
         try {
             this.api = new ApiClient("http://127.0.0.1:5000");
+            // Kick a tiny health ping for visibility (non-blocking)
+            this.api.health().then(h => console.log('[backend] health ok', h?.status)).catch(() => {
+                console.warn('[backend] not reachable; operating in offline mode');
+            });
         } catch (_) {
             this.api = null; // graceful fallback
         }
 
     this.carousel = new PlanetCarousel('#planet-carousel');
     this.dashboard = new PlanetDashboard('#planet-viewer');
-        this.waveform = new WaveformVisualizer('#waveform-chart');
+    this.waveform = new WaveformVisualizer('#waveform-chart', this.api);
         this.timeline = new Timeline('#timeline-container');
         this.overlay = new OverlayManager();
         this.compare = new CompareView();
